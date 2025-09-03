@@ -2,7 +2,7 @@ from torch import nn
 import torch
 
 class CNN1D(nn.Module):
-    def __init__(self, num_classes=5, input_length=2816):
+    def __init__(self, num_classes=2, input_length=2816):
         super(CNN1D, self).__init__()
         self.input_length = input_length
         self.feature_extractor = nn.Sequential(

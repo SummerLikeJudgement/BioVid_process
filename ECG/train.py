@@ -93,7 +93,7 @@ def main(data_dir = "", num_epoch = 50):
         print(f"训练集{len(train_loader.dataset)}"
               f"验证集{len(valid_loader.dataset)}")
         # 初始化模型
-        model = CNN1D(num_classes=len(label_converter)).to(device)
+        model = CNN1D(num_classes=2).to(device)
         counts = torch.tensor(dist_train, dtype=torch.float32)
         weights = (counts.sum() / counts).to(device)
         criterion = nn.CrossEntropyLoss(weight=weights)
