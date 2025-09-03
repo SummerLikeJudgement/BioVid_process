@@ -30,8 +30,8 @@ def _parse_args():
     """
     parser = argparse.ArgumentParser(description='read_Bio.py')
     parser.add_argument('--data_dir', type=str, default=r'D:\EmoData\BioVid\PartA\biosignals_filtered') # 原始数据目录路径
-    parser.add_argument('--output_dir', type=str, default=r'D:\EmoData\BioVid\processed\GSR') # 处理后的输出目录路径
-    parser.add_argument('--select_signal', type=int, default = 1, help='1 as GSR(ECG) signal, see colNames above') # 选择要处理的生理信号
+    parser.add_argument('--output_dir', type=str, default=r'D:\EmoData\BioVid\processed\ECG') # 处理后的输出目录路径
+    parser.add_argument('--select_signal', type=int, default = 2, help='1 as GSR(ECG) signal, see colNames above') # 选择要处理的生理信号
     args = parser.parse_args()
 
     if not os.path.exists(args.output_dir):
@@ -40,6 +40,21 @@ def _parse_args():
         shutil.rmtree(args.output_dir)
         os.makedirs(args.output_dir)
     return args
+
+def normalize_signal(signal, method="zscore"):
+    if method == "zscore":
+        mean = np.mean(signal, axis=1, keepdims=True)
+        std = np.std(signal, axis=1, keepdims=True)
+        normalized = (signal - mean) / std
+    elif method == "minmax":
+        min = np.min(signal, axis=1, keepdims=True)
+        max = np.max(signal, axis=1, keepdims=True)
+        normalized = (signal - min) / (max - min + 1e-8)
+    else:
+        normalized = signal
+
+    return normalized.astype(np.float32)
+
 
 
 def process_bioVid(data_dir, output_dir, select_signal=1):
@@ -80,6 +95,8 @@ def process_bioVid(data_dir, output_dir, select_signal=1):
         # 转换为numpy数组
         x = np.asarray(signals_per)
         y = np.asarray(labels_per)
+        # 标准化
+        x = normalize_signal(x, method="minmax")
         print('Data Processed: {}/{}'.format(i+1, len(data_dir_files)))
         print('X, y shape:{}, {}'.format(x.shape, y.shape))
         # 保存为npz文件
