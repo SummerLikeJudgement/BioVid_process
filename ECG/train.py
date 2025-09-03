@@ -97,7 +97,7 @@ def main(data_dir = "", num_epoch = 50):
         counts = torch.tensor(dist_train, dtype=torch.float32)
         weights = (counts.sum() / counts).to(device)
         criterion = nn.CrossEntropyLoss(weight=weights)
-        optimizer = optim.Adam(model.parameters(), lr=1e-4)
+        optimizer = optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-4)
         # 训练模型
         result = train_model(model, train_loader, valid_loader, criterion, optimizer, num_epoch=num_epoch, device=device, fold_idx=fold_idx)
         # 记录结果
