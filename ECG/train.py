@@ -78,7 +78,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
 
 def main(data_dir = "", num_epoch = 50):
     k_folds = 5
-    label_converter = {'0': 0, '1': 1, '2': 2, '3': 3, '4': 4}
+    label_converter = {'0': 0, '1': 1, '2': 1, '3': 1, '4': 1}
     batch_size = 64
     folds_acc = []
 
