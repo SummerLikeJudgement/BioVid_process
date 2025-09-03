@@ -201,7 +201,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-
+ECG/pt/
+GSR/pt/
 log/
 result/
-/processed
+processed/

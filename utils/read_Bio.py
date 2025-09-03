@@ -30,8 +30,8 @@ def _parse_args():
     """
     parser = argparse.ArgumentParser(description='read_Bio.py')
     parser.add_argument('--data_dir', type=str, default=r'D:\EmoData\BioVid\PartA\biosignals_filtered') # 原始数据目录路径
-    parser.add_argument('--output_dir', type=str, default=r'D:\EmoData\BioVid\processed\ECG') # 处理后的输出目录路径
-    parser.add_argument('--select_signal', type=int, default = 2, help='1 as GSR(ECG) signal, see colNames above') # 选择要处理的生理信号
+    parser.add_argument('--output_dir', type=str, default=r'D:\EmoData\BioVid\processed\GSR') # 处理后的输出目录路径
+    parser.add_argument('--select_signal', type=int, default = 1, help='1 as GSR(ECG) signal, see colNames above') # 选择要处理的生理信号
     args = parser.parse_args()
 
     if not os.path.exists(args.output_dir):
@@ -83,7 +83,7 @@ def process_bioVid(data_dir, output_dir, select_signal=1):
         print('Data Processed: {}/{}'.format(i+1, len(data_dir_files)))
         print('X, y shape:{}, {}'.format(x.shape, y.shape))
         # 保存为npz文件
-        filename = os.path.join(output_dir, data_dir_files[i] + '.processed')
+        filename = os.path.join(output_dir, data_dir_files[i] + '.npz')
         signals_dict = {
             "x": x,
             "y": y
