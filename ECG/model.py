@@ -5,7 +5,7 @@ class CNN1D(nn.Module):
     def __init__(self, num_classes=5, input_length=2816):
         super(CNN1D, self).__init__()
         self.input_length = input_length
-        self.feature = nn.Sequential(
+        self.feature_extractor = nn.Sequential(
             # 第一层: kernel=7, padding=3, stride=1 → 长度不变: 2816
             nn.Conv1d(1, 32, kernel_size=7, padding=3),
             nn.BatchNorm1d(32),
