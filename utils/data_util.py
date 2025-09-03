@@ -137,8 +137,8 @@ def load_data(train_set, valid_set, label_converter, batch_size, num_workers = 4
     train_dataset = BioVidLoader(train_set, label_converter)
     valid_dataset = BioVidLoader(valid_set, label_converter)
 
-    cat_y_train = torch.cat(train_dataset.lbl)
-    cat_y_valid = torch.cat(valid_dataset.lbl)
+    cat_y_train = train_dataset.lbl
+    cat_y_valid = valid_dataset.lbl
 
     # dist = [cat_y.count(i) for i in range(n_classes)]
 
