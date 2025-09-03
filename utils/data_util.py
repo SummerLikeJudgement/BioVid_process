@@ -99,7 +99,7 @@ class BioVidLoader(Dataset):
         # 对每个样本做标准化
         x_values = x_values.astype(np.float32)
         mean = x_values.mean(axis=1, keepdims=True)
-        std  =x_values.std(axis=1, keepdims=True)
+        std  =x_values.std(axis=1, keepdims=True) + 1e-6
         x_values = (x_values - mean) / std
         # 转换为tensor
         self.val = torch.from_numpy(x_values).float()

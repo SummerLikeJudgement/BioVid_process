@@ -17,6 +17,7 @@ class CNN1D(nn.Module):
             nn.Flatten(),
             nn.Linear(in_features=64*349, out_features=512),
             nn.ReLU(inplace=True),
+            nn.Dropout(0.5),
         )
         self.fc2 = nn.Sequential(
             nn.Linear(in_features=512, out_features=num_classes),
