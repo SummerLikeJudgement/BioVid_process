@@ -59,8 +59,8 @@ class CNN1D(nn.Module):
         self.fc_input_dim = x.shape[1]  # 512
 
     def forward(self, x):
-        x = self.features(x)
-        x = x.view(x.size(0), -1)
+        x = self.feature_extractor(x)
+        x = x.view(x.size(0), -1)  # 展平
         x = self.classifier(x)
         return x
 
