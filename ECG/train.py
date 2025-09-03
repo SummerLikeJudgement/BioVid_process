@@ -6,7 +6,7 @@ import numpy as np
 from ECG.model import CNN1D
 
 def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch, device, fold_idx):
-    print(f"===开始训练第{fold_idx}折===")
+    print(f"===开始训练第{fold_idx+1}折===")
     train_losses, valid_losses = [], []
     train_accs, valid_accs = [], []
     best_acc = 0
