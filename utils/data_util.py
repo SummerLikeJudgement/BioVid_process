@@ -137,14 +137,17 @@ def load_data(train_set, valid_set, label_converter, batch_size, num_workers = 4
     train_dataset = BioVidLoader(train_set, label_converter)
     valid_dataset = BioVidLoader(valid_set, label_converter)
 
-    cat_y = torch.cat((train_dataset.lbl, valid_dataset.lbl))
+    cat_y_train = torch.cat(train_dataset.lbl)
+    cat_y_valid = torch.cat(valid_dataset.lbl)
 
     # dist = [cat_y.count(i) for i in range(n_classes)]
 
     # e.g. two classes (tensor(list[lbl, lbl]), tensor(list[int, int]))
-    unique_counts = cat_y.unique(return_counts = True)
+    unique_counts_train = cat_y_train.unique(return_counts = True)
+    unique_counts_valid = cat_y_valid.unique(return_counts = True)
     # number of samples for each class -> list[int, int]
-    dist = unique_counts[1].tolist()
+    dist_train = unique_counts_train[1].tolist()
+    dist_valid = unique_counts_valid[1].tolist()
 
     # n_classes = len(unique_counts[0])
 
@@ -164,7 +167,7 @@ def load_data(train_set, valid_set, label_converter, batch_size, num_workers = 4
                               shuffle = False,
                               drop_last = False,
                               pin_memory = False)
-    return train_loader, valid_loader, dist
+    return train_loader, valid_loader, dist_train, dist_valid
 
 
 

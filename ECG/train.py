@@ -89,12 +89,12 @@ def main(data_dir = "", num_epoch = 50):
         print(f"==={fold_idx+1}/{k_folds}折训练===")
         # 加载数据
         train_files, valid_files = kfolds_index[fold_idx]
-        train_loader , valid_loader, dist = load_data(train_files, valid_files, label_converter, batch_size, num_workers=1)
+        train_loader , valid_loader, dist_train, dist_valid = load_data(train_files, valid_files, label_converter, batch_size, num_workers=2)
         print(f"训练集{len(train_loader.dataset)}"
               f"验证集{len(valid_loader.dataset)}")
         # 初始化模型
         model = CNN1D(num_classes=len(label_converter)).to(device)
-        counts = torch.tensor(dist, dtype=torch.float32)
+        counts = torch.tensor(dist_train, dtype=torch.float32)
         weights = (counts.sum() / counts).to(device)
         criterion = nn.CrossEntropyLoss(weight=weights)
         optimizer = optim.Adam(model.parameters(), lr=1e-4)
