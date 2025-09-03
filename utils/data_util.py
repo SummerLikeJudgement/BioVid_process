@@ -164,7 +164,7 @@ def load_data(train_set, valid_set, label_converter, batch_size, num_workers = 4
     valid_loader = DataLoader(valid_dataset,
                               num_workers = num_workers,
                               batch_size = batch_size,
-                              shuffle = False,
+                              shuffle = True,
                               drop_last = False,
                               pin_memory = False)
     return train_loader, valid_loader, dist_train, dist_valid
