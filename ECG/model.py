@@ -1,66 +1,121 @@
 from torch import nn
 import torch
 
-class CNN1D(nn.Module):
-    def __init__(self, num_classes=2, input_length=2816):
-        super(CNN1D, self).__init__()
-        self.input_length = input_length
-        self.feature_extractor = nn.Sequential(
-            # 第一层: kernel=7, padding=3, stride=1 → 长度不变: 2816
-            nn.Conv1d(1, 32, kernel_size=7, padding=3),
-            nn.BatchNorm1d(32),
-            nn.ReLU(inplace=True),
-            nn.MaxPool1d(kernel_size=2, stride=2),  # → 1408
+class BasicBlock1D(nn.Module):
+    """1D ResNet 基本残差块：Conv-BN-ReLU-Conv-BN + 残差短接 + ReLU"""
+    expansion = 1
 
-            # 第二层: kernel=5, padding=2, stride=1 → 长度不变: 1408
-            nn.Conv1d(32, 64, kernel_size=5, padding=2),
-            nn.BatchNorm1d(64),
-            nn.ReLU(inplace=True),
-            nn.MaxPool1d(kernel_size=2, stride=2),  # → 704
-
-            # 第三层: kernel=3, padding=1, stride=1 → 长度不变: 704
-            nn.Conv1d(64, 128, kernel_size=3, padding=1),
-            nn.BatchNorm1d(128),
-            nn.ReLU(inplace=True),
-            nn.MaxPool1d(kernel_size=2, stride=2),  # → 352
-
-            # 第四层: kernel=3, padding=1, stride=1 → 长度不变: 352
-            nn.Conv1d(128, 256, kernel_size=3, padding=1),
-            nn.BatchNorm1d(256),
-            nn.ReLU(inplace=True),
-            nn.MaxPool1d(kernel_size=2, stride=2),  # → 176
-
-            # 第五层: 进一步提取特征
-            nn.Conv1d(256, 512, kernel_size=3, padding=1),
-            nn.BatchNorm1d(512),
-            nn.ReLU(inplace=True),
-            nn.AdaptiveAvgPool1d(1)  # 全局平均池化 → 1
-        )
-
-        self._calculate_fc_input_dim()
-
-        self.classifier = nn.Sequential(
-            nn.Dropout(0.5),
-            nn.Linear(self.fc_input_dim, 256),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm1d(256),
-            nn.Dropout(0.3),
-            nn.Linear(256, 128),
-            nn.ReLU(inplace=True),
-            nn.Linear(128, num_classes)
-        )
-
-    def _calculate_fc_input_dim(self):
-        """计算全连接层的输入维度"""
-        # 模拟前向传播计算特征维度
-        x = torch.randn(1, 1, self.input_length)
-        with torch.no_grad():
-            x = self.feature_extractor(x)
-        self.fc_input_dim = x.shape[1]  # 512
+    def __init__(self, in_planes, planes, stride=1, downsample=None, kernel_size=7):
+        super().__init__()
+        padding = kernel_size // 2
+        self.conv1 = nn.Conv1d(in_planes, planes, kernel_size=kernel_size, stride=stride,
+                               padding=padding, bias=False)
+        self.bn1 = nn.BatchNorm1d(planes)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv1d(planes, planes, kernel_size=kernel_size, stride=1,
+                               padding=padding, bias=False)
+        self.bn2 = nn.BatchNorm1d(planes)
+        self.downsample = downsample
 
     def forward(self, x):
-        x = self.feature_extractor(x)
-        x = x.view(x.size(0), -1)  # 展平
-        x = self.classifier(x)
+        identity = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out += identity
+        out = self.relu(out)
+        return out
+
+
+class ResNet1D(nn.Module):
+    """
+    轻量 1D ResNet，用于时序信号二分类。
+    结构：stem → layer1 → layer2 → layer3 → layer4 → GAP → classifier
+    - 支持任意输入长度（AdaptiveAvgPool1d）
+    - 默认为二分类（num_classes=2）
+    - 可通过 width_mul 控制通道规模
+    """
+    def __init__(self, num_classes=2, in_channels=1, base_planes=32, blocks=(2, 2, 2, 2),
+                 kernel_size=7, width_mul=1.0, dropout=0.3):
+        super().__init__()
+        b = lambda c: int(c * width_mul)
+
+        # Stem
+        self.stem = nn.Sequential(
+            nn.Conv1d(in_channels, b(base_planes), kernel_size=kernel_size, stride=2,
+                      padding=kernel_size // 2, bias=False),
+            nn.BatchNorm1d(b(base_planes)),
+            nn.ReLU(inplace=True),
+            nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
+        )
+
+        # Stages
+        self.in_planes = b(base_planes)
+        self.layer1 = self._make_layer(BasicBlock1D, b(base_planes), blocks[0], stride=1, kernel_size=kernel_size)
+        self.layer2 = self._make_layer(BasicBlock1D, b(base_planes*2), blocks[1], stride=2, kernel_size=kernel_size)
+        self.layer3 = self._make_layer(BasicBlock1D, b(base_planes*4), blocks[2], stride=2, kernel_size=kernel_size)
+        self.layer4 = self._make_layer(BasicBlock1D, b(base_planes*8), blocks[3], stride=2, kernel_size=kernel_size)
+
+        # Head
+        self.gap = nn.AdaptiveAvgPool1d(1)
+        self.dropout = nn.Dropout(dropout)
+        self.fc = nn.Linear(b(base_planes*8), num_classes)
+
+        self._init_weights()
+
+    def _make_layer(self, block, planes, blocks, stride=1, kernel_size=7):
+        downsample = None
+        if stride != 1 or self.in_planes != planes * block.expansion:
+            downsample = nn.Sequential(
+                nn.Conv1d(self.in_planes, planes * block.expansion,
+                          kernel_size=1, stride=stride, bias=False),
+                nn.BatchNorm1d(planes * block.expansion),
+            )
+
+        layers = []
+        layers.append(block(self.in_planes, planes, stride=stride, downsample=downsample, kernel_size=kernel_size))
+        self.in_planes = planes * block.expansion
+        for _ in range(1, blocks):
+            layers.append(block(self.in_planes, planes, stride=1, downsample=None, kernel_size=kernel_size))
+
+        return nn.Sequential(*layers)
+
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Conv1d):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
+            elif isinstance(m, nn.BatchNorm1d):
+                nn.init.ones_(m.weight)
+                nn.init.zeros_(m.bias)
+            elif isinstance(m, nn.Linear):
+                nn.init.normal_(m.weight, 0, 0.01)
+                nn.init.zeros_(m.bias)
+
+    def forward(self, x):
+        # x: (B, 1, T)
+        x = self.stem(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        x = self.gap(x).squeeze(-1)  # (B, C)
+        x = self.dropout(x)
+        x = self.fc(x)               # (B, num_classes)
         return x
 
+
+# 为了兼容你现有的导入方式（from ECG.model import CNN1D），
+# 提供一个别名类，内部实际使用 ResNet1D。
+class CNN1D(ResNet1D):
+    def __init__(self, num_classes=2, input_length=None):
+        # input_length 在 ResNet 中不需要（自适应池化），保留该参数以避免改动训练代码
+        super().__init__(num_classes=num_classes, in_channels=1, base_planes=32,
+                         blocks=(2, 2, 2, 2), kernel_size=7, width_mul=1.0, dropout=0.3)

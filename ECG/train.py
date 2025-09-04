@@ -1,7 +1,7 @@
 from torch import optim, nn
 import torch, os
 from utils.data_util import load_data, generate_kfolds_index
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, f1_score
 import numpy as np
 from ECG.model import CNN1D
 
@@ -34,6 +34,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         pred = pred.cpu().detach().numpy()
         true = true.cpu().detach().numpy()
         train_acc = accuracy_score(true, pred)
+        train_f1 = f1_score(true, pred, average='weight')
         # 验证
         model.eval()
         val_loss = 0.0
@@ -52,6 +53,7 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
         valid_pred = valid_pred.cpu().detach().numpy()
         valid_true = valid_true.cpu().detach().numpy()
         valid_acc = accuracy_score(valid_true, valid_pred)
+        valid_f1 = f1_score(valid_true, valid_pred, average='weighted')
         # 记录指标
         train_losses.append(train_loss)
         valid_losses.append(val_loss)
