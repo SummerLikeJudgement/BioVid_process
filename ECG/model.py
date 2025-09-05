@@ -1,121 +1,224 @@
-from torch import nn
+import os
 import torch
+import torch.nn as nn
+import torch.optim as optim
+import numpy as np
+import pandas as pd
+from scipy.signal import find_peaks, butter, filtfilt
+from torch.utils.data import Dataset, DataLoader, random_split
 
-class BasicBlock1D(nn.Module):
-    """1D ResNet 基本残差块：Conv-BN-ReLU-Conv-BN + 残差短接 + ReLU"""
-    expansion = 1
-
-    def __init__(self, in_planes, planes, stride=1, downsample=None, kernel_size=7):
-        super().__init__()
-        padding = kernel_size // 2
-        self.conv1 = nn.Conv1d(in_planes, planes, kernel_size=kernel_size, stride=stride,
-                               padding=padding, bias=False)
-        self.bn1 = nn.BatchNorm1d(planes)
-        self.relu = nn.ReLU(inplace=True)
-        self.conv2 = nn.Conv1d(planes, planes, kernel_size=kernel_size, stride=1,
-                               padding=padding, bias=False)
-        self.bn2 = nn.BatchNorm1d(planes)
-        self.downsample = downsample
-
-    def forward(self, x):
-        identity = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-
-        if self.downsample is not None:
-            identity = self.downsample(x)
-
-        out += identity
-        out = self.relu(out)
-        return out
+# Set device
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-class ResNet1D(nn.Module):
-    """
-    轻量 1D ResNet，用于时序信号二分类。
-    结构：stem → layer1 → layer2 → layer3 → layer4 → GAP → classifier
-    - 支持任意输入长度（AdaptiveAvgPool1d）
-    - 默认为二分类（num_classes=2）
-    - 可通过 width_mul 控制通道规模
-    """
-    def __init__(self, num_classes=2, in_channels=1, base_planes=32, blocks=(2, 2, 2, 2),
-                 kernel_size=7, width_mul=1.0, dropout=0.3):
-        super().__init__()
-        b = lambda c: int(c * width_mul)
+### 1. ECG Preprocessing and Feature Extraction ###
 
-        # Stem
-        self.stem = nn.Sequential(
-            nn.Conv1d(in_channels, b(base_planes), kernel_size=kernel_size, stride=2,
-                      padding=kernel_size // 2, bias=False),
-            nn.BatchNorm1d(b(base_planes)),
-            nn.ReLU(inplace=True),
-            nn.MaxPool1d(kernel_size=3, stride=2, padding=1)
-        )
+def preprocess_ecg_signal(ecg_signal, fs=512):
+    """Preprocess ECG signal with bandpass filtering and QRS complex detection."""
+    # Bandpass filter parameters
+    lowcut = 0.5
+    highcut = 40.0
 
-        # Stages
-        self.in_planes = b(base_planes)
-        self.layer1 = self._make_layer(BasicBlock1D, b(base_planes), blocks[0], stride=1, kernel_size=kernel_size)
-        self.layer2 = self._make_layer(BasicBlock1D, b(base_planes*2), blocks[1], stride=2, kernel_size=kernel_size)
-        self.layer3 = self._make_layer(BasicBlock1D, b(base_planes*4), blocks[2], stride=2, kernel_size=kernel_size)
-        self.layer4 = self._make_layer(BasicBlock1D, b(base_planes*8), blocks[3], stride=2, kernel_size=kernel_size)
+    # Design bandpass filter
+    nyquist = 0.5 * fs
+    low = lowcut / nyquist
+    high = highcut / nyquist
+    b, a = butter(1, [low, high], btype="band")
 
-        # Head
-        self.gap = nn.AdaptiveAvgPool1d(1)
+    # Apply the bandpass filter
+    filtered_ecg = filtfilt(b, a, ecg_signal)
+
+    # R-peak detection
+    peaks, _ = find_peaks(filtered_ecg, distance=fs // 2)
+
+    # Calculate heart rate from R-R intervals
+    rr_intervals = np.diff(peaks) / fs * 1000  # Convert to ms
+    heart_rate = 60000 / rr_intervals  # Heart rate in BPM
+
+    return heart_rate
+
+
+### 2. Custom Dataset for Multilevel Pain Classification ###
+
+class BioVidECGDataset(Dataset):
+    def __init__(self, base_folder, max_length=100):
+        super(BioVidECGDataset, self).__init__()
+        self.base_folder = base_folder
+        self.ecg_files = []
+        self.labels = []
+        self.max_length = max_length  # Fixed length for all tensors
+        self._load_files()
+
+    def _load_files(self):
+        for subject_folder in os.listdir(self.base_folder):
+            subject_path = os.path.join(self.base_folder, subject_folder)
+            if os.path.isdir(subject_path):
+                for file_name in os.listdir(subject_path):
+                    if file_name.endswith('.csv'):
+                        file_path = os.path.join(subject_path, file_name)
+                        label = self._get_label_from_filename(file_name)
+                        self.ecg_files.append(file_path)
+                        self.labels.append(label)
+
+    def _get_label_from_filename(self, filename):
+        """Return pain level based on filename."""
+        if 'BL1' in filename:
+            return 0
+        elif 'PA1' in filename:
+            return 1
+        elif 'PA2' in filename:
+            return 2
+        elif 'PA3' in filename:
+            return 3
+        elif 'PA4' in filename:
+            return 4
+        else:
+            return 0  # Default to no pain
+
+    def __len__(self):
+        return len(self.ecg_files)
+
+    def __getitem__(self, idx):
+        ecg_path = self.ecg_files[idx]
+        label = self.labels[idx]
+
+        # Read ECG data from the 3rd row onward (skip first 2 rows)
+        ecg_data = pd.read_csv(ecg_path, header=None, skiprows=2).iloc[:, 1].values
+
+        # Preprocess the ECG data to extract heart rate
+        heart_rate = preprocess_ecg_signal(ecg_data)
+
+        # Pad or truncate heart rate to the fixed length
+        if len(heart_rate) > self.max_length:
+            heart_rate = heart_rate[:self.max_length]
+        else:
+            heart_rate = np.pad(heart_rate, (0, self.max_length - len(heart_rate)), 'constant')
+
+        # Convert heart rate to tensor
+        heart_rate_tensor = torch.tensor(heart_rate, dtype=torch.float32).unsqueeze(-1)
+
+        return heart_rate_tensor, torch.tensor(label, dtype=torch.long)
+
+
+### 3. Heart Rate Encoder Model for Multiclass Output ###
+
+class HeartRateEncoder(nn.Module):
+    def __init__(self, input_dim=1, embed_dim=512, num_heads=8, num_layers=2, dropout=0.3, num_classes=4):
+        super(HeartRateEncoder, self).__init__()
+        self.input_projection = nn.Linear(input_dim, embed_dim)
+
+        # Transformer Encoder Layers
+        encoder_layer = nn.TransformerEncoderLayer(d_model=embed_dim, nhead=num_heads, dropout=dropout)
+        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+
+        # Dropout layer for regularization
         self.dropout = nn.Dropout(dropout)
-        self.fc = nn.Linear(b(base_planes*8), num_classes)
 
-        self._init_weights()
-
-    def _make_layer(self, block, planes, blocks, stride=1, kernel_size=7):
-        downsample = None
-        if stride != 1 or self.in_planes != planes * block.expansion:
-            downsample = nn.Sequential(
-                nn.Conv1d(self.in_planes, planes * block.expansion,
-                          kernel_size=1, stride=stride, bias=False),
-                nn.BatchNorm1d(planes * block.expansion),
-            )
-
-        layers = []
-        layers.append(block(self.in_planes, planes, stride=stride, downsample=downsample, kernel_size=kernel_size))
-        self.in_planes = planes * block.expansion
-        for _ in range(1, blocks):
-            layers.append(block(self.in_planes, planes, stride=1, downsample=None, kernel_size=kernel_size))
-
-        return nn.Sequential(*layers)
-
-    def _init_weights(self):
-        for m in self.modules():
-            if isinstance(m, nn.Conv1d):
-                nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
-            elif isinstance(m, nn.BatchNorm1d):
-                nn.init.ones_(m.weight)
-                nn.init.zeros_(m.bias)
-            elif isinstance(m, nn.Linear):
-                nn.init.normal_(m.weight, 0, 0.01)
-                nn.init.zeros_(m.bias)
+        # Output layer for multiclass classification
+        self.output_layer = nn.Linear(embed_dim, num_classes)
 
     def forward(self, x):
-        # x: (B, 1, T)
-        x = self.stem(x)
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
-        x = self.gap(x).squeeze(-1)  # (B, C)
+        x = self.input_projection(x)
+        x = self.transformer_encoder(x)
+        x = x.mean(dim=1)
         x = self.dropout(x)
-        x = self.fc(x)               # (B, num_classes)
+        x = self.output_layer(x)
         return x
 
 
-# 为了兼容你现有的导入方式（from ECG.model import CNN1D），
-# 提供一个别名类，内部实际使用 ResNet1D。
-class CNN1D(ResNet1D):
-    def __init__(self, num_classes=2, input_length=None):
-        # input_length 在 ResNet 中不需要（自适应池化），保留该参数以避免改动训练代码
-        super().__init__(num_classes=num_classes, in_channels=1, base_planes=32,
-                         blocks=(2, 2, 2, 2), kernel_size=7, width_mul=1.0, dropout=0.3)
+### 4. Training and Validation Functions ###
+
+def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs=10,
+                save_path="heart_rate_encoder_model.pth"):
+    model.train()
+    for epoch in range(num_epochs):
+        epoch_loss = 0.0
+        correct = 0
+        total = 0
+
+        for signals, labels in train_loader:
+            signals, labels = signals.to(device), labels.to(device)
+
+            # Forward pass
+            outputs = model(signals)
+            loss = criterion(outputs, labels)
+
+            # Backward pass and optimization
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            # Calculate accuracy
+            _, predicted = torch.max(outputs, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+            epoch_loss += loss.item()
+
+        accuracy = 100 * correct / total
+        print(f"Epoch {epoch + 1}/{num_epochs}, Train Loss: {epoch_loss:.4f}, Train Accuracy: {accuracy:.2f}%")
+
+        # Validation phase
+        val_loss, val_accuracy = validate_model(model, val_loader, criterion)
+        print(
+            f"Epoch {epoch + 1}/{num_epochs}, Validation Loss: {val_loss:.4f}, Validation Accuracy: {val_accuracy:.2f}%")
+
+    # Save the trained model
+    torch.save(model.state_dict(), save_path)
+    print(f"Model saved to {save_path}")
+
+
+def validate_model(model, val_loader, criterion):
+    model.eval()
+    val_loss = 0.0
+    correct = 0
+    total = 0
+
+    with torch.no_grad():
+        for signals, labels in val_loader:
+            signals, labels = signals.to(device), labels.to(device)
+
+            # Forward pass
+            outputs = model(signals)
+            loss = criterion(outputs, labels)
+            val_loss += loss.item()
+
+            # Accuracy
+            _, predicted = torch.max(outputs, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+    val_loss /= len(val_loader)
+    val_accuracy = 100 * correct / total
+    return val_loss, val_accuracy
+
+
+### 5. Main Execution with Train/Validation Split ###
+
+def main(base_folder):
+    # Create dataset and split into training and validation sets
+    dataset = BioVidECGDataset(base_folder, max_length=2800)
+    train_size = int(0.8 * len(dataset))
+    val_size = len(dataset) - train_size
+    train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
+
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+
+    # Initialize model, loss function, and optimizer
+    model = HeartRateEncoder(num_classes=4).to(device)
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=1e-4, weight_decay=1e-5)
+
+    # Train the model
+    train_model(model, train_loader, val_loader, criterion, optimizer)
+
+
+# Execute the main function with the base folder path
+if __name__ == '__main__':
+    base_folder = r"F:\sem5\Biomedical signal Processing\project_related\part_A\ecg_only"
+    main(base_folder)
+    model = HeartRateEncoder(input_dim=1, embed_dim=512, num_heads=8, num_layers=2, dropout=0.3, num_classes=4)
+
+    # Count total trainable parameters
+    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Total trainable parameters: {total_params}")
