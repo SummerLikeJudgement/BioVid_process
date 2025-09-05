@@ -4,10 +4,13 @@ import cv2
 from mtcnn import MTCNN
 import logging
 
+def check_path(path):
+    if not os.path.exists(path):
+        os.makedirs(path)
+
 # 设置日志输出
 log_dir = './log'
-if not os.path.exists(log_dir):
-    os.makedirs(log_dir)
+check_path(log_dir)
 
 logging.basicConfig(
     filename=os.path.join(log_dir, 'face_crop.log'),
@@ -77,13 +80,10 @@ def getlabel(filename):
     else:
         return 'P0'
 
-def check_path(path):
-    if not os.path.exists(path):
-        os.makedirs(path)
 
-if __name__ == "__main__":
-    vedio_folder = "./face_data"
-    face_folder = "./processed/face"
+def main(vedio_folder_path, output_folder_path):
+    vedio_folder = vedio_folder_path
+    face_folder = output_folder_path
 
     # 创建输出目录
     check_path(face_folder)

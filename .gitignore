@@ -204,4 +204,5 @@ __marimo__/
 pt/
 log/
 result/
-utils/processed/
+processed/
+face_data/
