@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from torchvision import transforms
 from torchvision.models import resnet18
-from torch.utils.data import Dataset, DataLoader, random_split
+from torch.utils.data import Dataset
 from PIL import Image
 
 ### 1. Custom Dataset for Facial Video Frames ###

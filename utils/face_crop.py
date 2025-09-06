@@ -34,7 +34,7 @@ def create_face_detector():
     options = FaceDetectorOptions(
         base_options=BaseOptions(
             model_asset_path='./mediapipe/blaze_face_short_range.tflite',
-            delegate = python.BaseOptions.Delegate.GPU
+            # delegate = python.BaseOptions.Delegate.GPU
         ),
         running_mode=VisionRunningMode.IMAGE,
         min_detection_confidence=0.5)
@@ -69,7 +69,7 @@ def crop_face(img, output_folder_path, image_name, detector):
         height = bbox.height
 
         # 扩展边界框以获得更好的裁剪（包含更多面部区域）
-        expand_factor = 0.2  # 扩展20%
+        expand_factor = 0.01  # 扩展1%
         x_expand = max(0, x - int(width * expand_factor))
         y_expand = max(0, y - int(height * expand_factor))
         width_expand = min(w - x_expand, int(width * (1 + 2 * expand_factor)))

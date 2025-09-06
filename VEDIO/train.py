@@ -61,14 +61,14 @@ def save_model(model, file_path):
 
 ### 5. Main Function ###
 
-def main(base_folder, num_epochs=10):
+def main(base_folder, num_epochs=10, batch_size=16):
     dataset = BioVidFacialDataset(base_folder)
     train_size = int(0.8 * len(dataset))
     val_size = len(dataset) - train_size
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
-    train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=0)
-    val_loader = DataLoader(val_dataset, batch_size=4, shuffle=False, num_workers=0)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
     model = FacialVideoEncoder(num_classes=5).to(device)
     criterion = nn.CrossEntropyLoss()

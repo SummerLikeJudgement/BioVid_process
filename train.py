@@ -9,6 +9,6 @@ def model_train(model_name = "vision"):
     base_dir = os.path.dirname(os.path.abspath(__file__))
     if model_name == 'vision':
         abs_data_dir = os.path.join(base_dir, data_dir['vision'])
-        vision_train(abs_data_dir, 20)
+        vision_train(abs_data_dir, num_epochs=20, batch_size=16)
     else:
         raise ValueError('Model name must be ecg or gsr or vision')
