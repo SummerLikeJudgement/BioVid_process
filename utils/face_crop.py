@@ -2,10 +2,15 @@ import os
 import numpy as np
 import cv2
 import mediapipe as mp
-import logging
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
-from mediapipe import VisionRunningMode
+import logging
+
+# 导入新的Tasks API
+BaseOptions = mp.tasks.BaseOptions
+FaceDetector = mp.tasks.vision.FaceDetector
+FaceDetectorOptions = mp.tasks.vision.FaceDetectorOptions
+VisionRunningMode = mp.tasks.vision.RunningMode
 
 
 def check_path(path):
@@ -24,38 +29,40 @@ logging.basicConfig(
 )
 
 
-# 初始化 MediaPipe 人脸检测（使用GPU）
+# 创建人脸检测器实例
 def create_face_detector():
-    base_options = python.BaseOptions(
-        model_asset_path='blaze_face_short_range.tflite',  # MediaPipe人脸检测模型
-        delegate=python.BaseOptions.Delegate.GPU
-    )
-    options = vision.FaceDetectorOptions(
-        base_options=base_options,
-        running_mode=VisionRunningMode.IMAGE
-    )
-    return vision.FaceDetector.create_from_options(options)
+    options = FaceDetectorOptions(
+        base_options=BaseOptions(
+            model_asset_path='./mediapipe/blaze_face_short_range.tflite',
+            delegate = python.BaseOptions.Delegate.GPU
+        ),
+        running_mode=VisionRunningMode.IMAGE,
+        min_detection_confidence=0.5)
+    return FaceDetector.create_from_options(options)
 
 
 # 裁剪人脸
 def crop_face(img, output_folder_path, image_name, detector):
-    # 转换图像为 MediaPipe Image 格式
+    # 转换图像为 RGB（MediaPipe 需要 RGB 格式）
     rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    mp_image = vision.Image(image_format=vision.ImageFormat.SRGB, data=rgb_img)
 
-    # 使用GPU进行人脸检测
+    # 创建MediaPipe Image对象
+    mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_img)
+
+    # 进行人脸检测
     detection_result = detector.detect(mp_image)
 
     # 无法识别面部的图片
     if not detection_result.detections:
         return False
 
-    for detection in detection_result.detections:
-        # 获取人脸边界框
-        bbox = detection.bounding_box
-        h, w, _ = img.shape
+    h, w, _ = img.shape
 
-        # 计算实际像素坐标
+    for detection in detection_result.detections:
+        # 获取人脸边界框（新API使用bounding_box而不是location_data.relative_bounding_box）
+        bbox = detection.bounding_box
+
+        # 计算实际像素坐标（新API直接提供像素坐标）
         x = bbox.origin_x
         y = bbox.origin_y
         width = bbox.width
@@ -87,9 +94,6 @@ def crop_face(img, output_folder_path, image_name, detector):
 
 # 视频转图片
 def getpic(input_folder_path, output_folder_path):
-    # 创建人脸检测器实例
-    detector = create_face_detector()
-
     cap = cv2.VideoCapture(input_folder_path)
     if not cap.isOpened():
         logging.error(f"Cannot open video: {input_folder_path}")
@@ -109,28 +113,33 @@ def getpic(input_folder_path, output_folder_path):
     start_frame = int(2.0 * fps)
     end_frame = int(fps * (duration - 0.5))
 
+    # 创建人脸检测器实例
+    detector = create_face_detector()
+
     count = 0
     numFrame = 0
-    while True:
-        if cap.grab():
-            flag, frame = cap.retrieve()
-            if not flag:
-                continue
-            numFrame += 1
-            if numFrame >= start_frame and numFrame <= end_frame:
-                count += 1
-                image_name = f"{str(count).zfill(5)}.jpg"
-                detected = crop_face(frame, output_folder_path, image_name, detector)
-                if not detected:
-                    logging.warning(f"{output_folder_path}/{image_name} no face_data!")
-            elif numFrame > end_frame:
-                break
-        else:
-            break
 
-    cap.release()
-    # 释放检测器资源
-    detector.close()
+    try:
+        while True:
+            if cap.grab():
+                flag, frame = cap.retrieve()
+                if not flag:
+                    continue
+                numFrame += 1
+                if numFrame >= start_frame and numFrame < end_frame:
+                    count += 1
+                    image_name = f"{str(count).zfill(5)}.jpg"
+                    detected = crop_face(frame, output_folder_path, image_name, detector)
+                    if not detected:
+                        logging.warning(f"{output_folder_path}/{image_name} no face_data!")
+                elif numFrame > end_frame:
+                    break
+            else:
+                break
+    finally:
+        # 确保资源被正确释放
+        cap.release()
+        detector.close()
 
 
 def getlabel(filename):
