@@ -3,6 +3,9 @@ import numpy as np
 import cv2
 import mediapipe as mp
 import logging
+from mediapipe.tasks import python
+from mediapipe.tasks.python import vision
+from mediapipe import VisionRunningMode
 
 
 def check_path(path):
@@ -20,59 +23,73 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s',
 )
 
-# 初始化 MediaPipe 人脸检测
-mp_face_detection = mp.solutions.face_detection
-mp_drawing = mp.solutions.drawing_utils
+
+# 初始化 MediaPipe 人脸检测（使用GPU）
+def create_face_detector():
+    base_options = python.BaseOptions(
+        model_asset_path='blaze_face_short_range.tflite',  # MediaPipe人脸检测模型
+        delegate=python.BaseOptions.Delegate.GPU
+    )
+    options = vision.FaceDetectorOptions(
+        base_options=base_options,
+        running_mode=VisionRunningMode.IMAGE
+    )
+    return vision.FaceDetector.create_from_options(options)
 
 
 # 裁剪人脸
-def crop_face(img, output_folder_path, image_name):
-    with mp_face_detection.FaceDetection(model_selection=1, min_detection_confidence=0.5) as face_detection:
-        # 转换图像为 RGB（MediaPipe 需要 RGB 格式）
-        rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        results = face_detection.process(rgb_img)
+def crop_face(img, output_folder_path, image_name, detector):
+    # 转换图像为 MediaPipe Image 格式
+    rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    mp_image = vision.Image(image_format=vision.ImageFormat.SRGB, data=rgb_img)
 
-        # 无法识别面部的图片
-        if not results.detections:
-            return False
+    # 使用GPU进行人脸检测
+    detection_result = detector.detect(mp_image)
 
-        for detection in results.detections:
-            # 获取人脸边界框
-            bbox = detection.location_data.relative_bounding_box
-            h, w, _ = img.shape
+    # 无法识别面部的图片
+    if not detection_result.detections:
+        return False
 
-            # 计算实际像素坐标
-            x = int(bbox.xmin * w)
-            y = int(bbox.ymin * h)
-            width = int(bbox.width * w)
-            height = int(bbox.height * h)
+    for detection in detection_result.detections:
+        # 获取人脸边界框
+        bbox = detection.bounding_box
+        h, w, _ = img.shape
 
-            # 扩展边界框以获得更好的裁剪（包含更多面部区域）
-            expand_factor = 0.2  # 扩展20%
-            x_expand = max(0, x - int(width * expand_factor))
-            y_expand = max(0, y - int(height * expand_factor))
-            width_expand = min(w - x_expand, int(width * (1 + 2 * expand_factor)))
-            height_expand = min(h - y_expand, int(height * (1 + 2 * expand_factor)))
+        # 计算实际像素坐标
+        x = bbox.origin_x
+        y = bbox.origin_y
+        width = bbox.width
+        height = bbox.height
 
-            # 截取对齐人脸
-            cropped_img = img[y_expand:y_expand + height_expand, x_expand:x_expand + width_expand]
+        # 扩展边界框以获得更好的裁剪（包含更多面部区域）
+        expand_factor = 0.2  # 扩展20%
+        x_expand = max(0, x - int(width * expand_factor))
+        y_expand = max(0, y - int(height * expand_factor))
+        width_expand = min(w - x_expand, int(width * (1 + 2 * expand_factor)))
+        height_expand = min(h - y_expand, int(height * (1 + 2 * expand_factor)))
 
-            # 确保裁剪的图像不为空
-            if cropped_img.size == 0:
-                continue
+        # 截取对齐人脸
+        cropped_img = img[y_expand:y_expand + height_expand, x_expand:x_expand + width_expand]
 
-            resized = cv2.resize(cropped_img, (224, 224), interpolation=cv2.INTER_AREA)
+        # 确保裁剪的图像不为空
+        if cropped_img.size == 0:
+            continue
 
-            # 将图像保存到输出目录
-            output_path = os.path.join(output_folder_path, image_name)
-            cv2.imwrite(output_path, resized)
-            return True
+        resized = cv2.resize(cropped_img, (224, 224), interpolation=cv2.INTER_AREA)
+
+        # 将图像保存到输出目录
+        output_path = os.path.join(output_folder_path, image_name)
+        cv2.imwrite(output_path, resized)
+        return True
 
     return False
 
 
 # 视频转图片
 def getpic(input_folder_path, output_folder_path):
+    # 创建人脸检测器实例
+    detector = create_face_detector()
+
     cap = cv2.VideoCapture(input_folder_path)
     if not cap.isOpened():
         logging.error(f"Cannot open video: {input_folder_path}")
@@ -103,7 +120,7 @@ def getpic(input_folder_path, output_folder_path):
             if numFrame >= start_frame and numFrame <= end_frame:
                 count += 1
                 image_name = f"{str(count).zfill(5)}.jpg"
-                detected = crop_face(frame, output_folder_path, image_name)  # 直接裁剪并保存
+                detected = crop_face(frame, output_folder_path, image_name, detector)
                 if not detected:
                     logging.warning(f"{output_folder_path}/{image_name} no face_data!")
             elif numFrame > end_frame:
@@ -112,6 +129,8 @@ def getpic(input_folder_path, output_folder_path):
             break
 
     cap.release()
+    # 释放检测器资源
+    detector.close()
 
 
 def getlabel(filename):
