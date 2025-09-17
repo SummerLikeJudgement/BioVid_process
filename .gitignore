@@ -201,9 +201,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-pt/
+
 log/
 result/
+temp/
 processed/
-face_data/
-mediapipe/
