@@ -1,4 +1,6 @@
-import os
+from utils.crop_util import check_path, set_log, getlabel
+
+import os, pickle
 import cv2
 import logging
 import subprocess
@@ -6,21 +8,11 @@ import tempfile
 import pandas as pd
 import glob
 
-def check_path(path):
-    if not os.path.exists(path):
-        os.makedirs(path)
 
 # 设置日志输出
-log_dir = './log'
-check_path(log_dir)
+set_log("face_crop.log")
 # openface设置
 openface_path = 'D:\Code\OpenFace_2.2.0_win_x64\FeatureExtraction.exe'
-
-logging.basicConfig(
-    filename=os.path.join(log_dir, 'face_crop.log'),
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-)
 
 
 # openface提取AU
@@ -139,20 +131,6 @@ def process_video_with_openface(video_path, output_folder):
                 logging.error(f"Error deleting files in temporary folder: {str(e)}")
 
 
-def getlabel(filename):
-    """根据文件名获取标签"""
-    labels = {
-        'BL1': 'P0',
-        'PA1': 'P1',
-        'PA2': 'P2',
-        'PA3': 'P3',
-        'PA4': 'P4'
-    }
-
-    for key, value in labels.items():
-        if key in filename:
-            return value
-    return 'P0'
 
 
 def main(video_folder_path, output_folder_path):
