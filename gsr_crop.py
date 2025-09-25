@@ -5,7 +5,6 @@ import numpy
 from utils import sigproc
 from scipy.fftpack import dct
 
-set_log("gsr_crop.log")
 
 def calculate_nfft(samplerate, winlen):
     """Calculates the FFT size as a power of two greater than or equal to
@@ -234,19 +233,23 @@ def process_gsr_with_mfcc(csv_path, output_path):
             signal.append(values[1])
         x = numpy.asarray(signal)
         mfcc_feat = mfcc(x, samplerate=512)
+        d_mfcc_feat = delta(mfcc_feat, N=2)
+        dd_mfcc_feat = delta(d_mfcc_feat, N=2)
+        feat = numpy.concatenate((mfcc_feat, d_mfcc_feat, dd_mfcc_feat), axis=1)
         data = {
-            'mfcc':mfcc_feat
+            'mfcc':feat,
         }
         gsr_name = os.path.splitext(os.path.basename(csv_path))[0]
         output_pkl = os.path.join(output_path, gsr_name + '.pkl')
         with open(output_pkl, 'wb') as f:
             pickle.dump(data, f)
-        print(mfcc_feat)
-        print(mfcc_feat.shape)
+        print(feat)
+        print(feat.shape)
 
 
 def main(gsr_folder_path, output_folder_path):
     check_path(output_folder_path)
+    set_log("gsr_crop.log")
     logging.info("==== Processing gsr with MFCC ====")
 
     for subject in os.listdir(gsr_folder_path):
@@ -260,7 +263,7 @@ def main(gsr_folder_path, output_folder_path):
                     check_path(output_path)
 
                     if os.path.isfile(gsr_path):
-                        logging.info(f"Processing {gsr_path}")
+                        logging.info(f"Processing {gsr_name}")
                         process_gsr_with_mfcc(gsr_path, output_path)
                     else:
                         logging.error(f"gsr file not found: {gsr_path}")
