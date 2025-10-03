@@ -32,7 +32,7 @@ if __name__ == '__main__':
     data_set = {
         'train':train_set,
         'test':test_set,
-        'val':valid_set
+        'valid':valid_set
     }
     with open('./processed/unaligned.pkl', 'wb') as f:
         pickle.dump(data_set, f)

@@ -1,6 +1,6 @@
 import csv
 import os, glob, logging, pickle
-from utils.crop_util import check_path, set_log, getlabel
+from utils.crop_util import check_path, set_log
 import numpy
 from utils import sigproc
 from scipy.fftpack import dct
@@ -256,10 +256,9 @@ def main(gsr_folder_path, output_folder_path):
             subject_path = os.path.join(gsr_folder_path, subject)
             if os.path.isdir(subject_path):
                 for gsr_file in os.listdir(subject_path):
-                    label = getlabel(gsr_file)
                     gsr_path = os.path.join(subject_path, gsr_file)
                     gsr_name = os.path.splitext(gsr_file)[0]
-                    output_path = os.path.join(output_folder_path, subject, f"{gsr_name}_{label}")
+                    output_path = os.path.join(output_folder_path, subject)
                     check_path(output_path)
 
                     if os.path.isfile(gsr_path):

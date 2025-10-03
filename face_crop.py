@@ -1,4 +1,4 @@
-from utils.crop_util import check_path, set_log, getlabel
+from utils.crop_util import check_path, set_log
 
 import os, pickle
 import cv2
@@ -145,9 +145,7 @@ def main(video_folder_path, output_folder_path):
         subject_path = os.path.join(video_folder_path, subject)
         if os.path.isdir(subject_path):
             for video_file in os.listdir(subject_path):
-                label = getlabel(video_file)
-                video_name = os.path.splitext(video_file)[0]
-                output_path = os.path.join(output_folder_path, subject, f"{video_name}_{label}")
+                output_path = os.path.join(output_folder_path, subject)
                 check_path(output_path)
 
                 video_file_path = os.path.join(subject_path, video_file)

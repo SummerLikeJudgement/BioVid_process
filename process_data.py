@@ -3,7 +3,7 @@ from face_crop import main as AU_crop
 from gsr_crop import main as GSR_crop
 
 data_path = {
-    'vedio':r"D:\EmoData\BioVid\PartA\video",
+    'vedio':r"D:\EmoData\BioVid\PartA\temp",
     'gsr':r"D:\EmoData\BioVid\PartA\biosignals_filtered",
     'ecg':r"D:\EmoData\BioVid\PartA\biosignals_filtered"
 }

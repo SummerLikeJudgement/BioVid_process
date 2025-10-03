@@ -41,14 +41,21 @@ def set_log(log_name):
 def getlabel(filename):
     """根据文件名获取标签"""
     labels = {
-        'BL1': 'P0',
-        'PA1': 'P1',
-        'PA2': 'P2',
-        'PA3': 'P3',
-        'PA4': 'P4'
+        'BL1': 0,
+        'PA1': 1,
+        'PA2': 2,
+        'PA3': 3,
+        'PA4': 4
     }
-
     for key, value in labels.items():
         if key in filename:
             return value
-    return 'P0'
+    return 0
+
+
+# def get_files(folder):
+#     for subject in os.listdir(folder):
+#         subject_path = os.path.join(folder, subject)
+#         if os.path.isdir(subject_path):
+#             for file in os.listdir(subject_path):
+#                 label = getlabel(file)
