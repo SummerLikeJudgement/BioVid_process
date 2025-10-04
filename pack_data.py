@@ -16,17 +16,9 @@ ecg_path = "./processed/ecg/"
 gsr_path = "./processed/gsr/"
 vedio_path = "./processed/vedio/"
 
-# 分类任务
-task_type = {
-    "0 vs 1 vs 2 vs 3 vs 4":1,
-    "0 vs 1":2,
-    "0 vs 2":3,
-    "0 vs 3":4,
-    "0 vs 4":5,
-}
 
 
-def pack(mode = "train", type = 1):
+def pack(mode = "train"):
     logging.info(f"====Processing {mode} set====")
     subs = subject[mode]
     ecg, gsr, vision = [], [], []
@@ -35,11 +27,11 @@ def pack(mode = "train", type = 1):
     # 查找所有匹配的文件路径
     for sub in subs:
         logging.info(f"Processing {sub} features")
-        label = list(itertools.chain(label, find_label(ecg_path, sub, type)))
-        id = list(itertools.chain(id, find_id(gsr_path, sub, type)))
-        ecg = list(itertools.chain(ecg, find_path(ecg_path, sub, type)))
-        gsr = list(itertools.chain(gsr, find_path(gsr_path, sub, type)))
-        vision = list(itertools.chain(vision, find_path(vedio_path, sub, type)))
+        label = list(itertools.chain(label, find_label(ecg_path, sub)))
+        id = list(itertools.chain(id, find_id(gsr_path, sub)))
+        ecg = list(itertools.chain(ecg, find_path(ecg_path, sub)))
+        gsr = list(itertools.chain(gsr, find_path(gsr_path, sub)))
+        vision = list(itertools.chain(vision, find_path(vedio_path, sub)))
 
     set = {}
     set["id"] = id
@@ -54,15 +46,14 @@ def pack(mode = "train", type = 1):
     return set
 
 if __name__ == "__main__":
-    type = task_type[input("which type to pack")]
-    train = pack("train", type)
-    test = pack("test", type)
-    valid = pack("valid",type)
+    train = pack("train")
+    test = pack("test")
+    valid = pack("valid")
     dataset = {
         "train": train,
         "test": test,
         "valid": valid
     }
-    with open(f"./processed/unaligned_{type}.pkl", "wb") as f:
+    with open("./processed/unaligned.pkl", "wb") as f:
         pickle.dump(dataset, f)
     logging.info("pkl saved!")
