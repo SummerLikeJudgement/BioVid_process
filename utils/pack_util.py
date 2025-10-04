@@ -3,27 +3,47 @@ import numpy as np
 import pandas as pd
 from .crop_util import getlabel
 
-def find_path(base_dir, subject):
+task_dele = {
+    1:[],
+    2:[2,3,4],
+    3:[1,3,4],
+    4:[1,2,4],
+    5:[1,2,3]
+}
+
+def find_path(base_dir, subject, type):
     sub_path = os.path.join(base_dir, subject)
     res = []
     for feat in os.listdir(sub_path):
-        feat_path = os.path.join(sub_path, feat)
-        res.append(feat_path)
+        label = getlabel(feat)
+        if label in task_dele[type]:
+            continue
+        else:
+            feat_path = os.path.join(sub_path, feat)
+            res.append(feat_path)
     # print(res)
     return res
 
-def find_label(base_dir, subject):
+def find_label(base_dir, subject, type):
     sub_path = os.path.join(base_dir, subject)
     res = []
     for feat in os.listdir(sub_path):
-        res.append(getlabel(feat))
+        label = getlabel(feat)
+        if label in task_dele[type]:
+            continue
+        else:
+            res.append(label)
     return res
 
-def find_id(base_dir, subject):
+def find_id(base_dir, subject, type):
     sub_path = os.path.join(base_dir, subject)
     res = []
     for feat in os.listdir(sub_path):
-        res.append(feat[:-8])
+        label = getlabel(feat)
+        if label in task_dele[type]:
+            continue
+        else:
+            res.append(feat[:-8])
     return res
 
 

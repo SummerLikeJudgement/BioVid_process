@@ -52,10 +52,3 @@ def getlabel(filename):
             return value
     return 0
 
-
-# def get_files(folder):
-#     for subject in os.listdir(folder):
-#         subject_path = os.path.join(folder, subject)
-#         if os.path.isdir(subject_path):
-#             for file in os.listdir(subject_path):
-#                 label = getlabel(file)
